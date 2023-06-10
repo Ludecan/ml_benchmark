@@ -1,4 +1,4 @@
-# ml_benchmark
+# ML benchmark
 Training time benchmark for Machine Learning algorithms
 
 ## Installation steps
@@ -6,7 +6,7 @@ Training time benchmark for Machine Learning algorithms
 1. **Clone the repo** locally
 ```console
 git clone git@github.com:Ludecan/ml_benchmark.git
-```console
+```
 2. Install pyenv following the instructions here: https://github.com/pyenv/pyenv
 3. Install poetry following the instructions here: https://python-poetry.org/docs/#installation
 4. Install `python 3.10.11` using `pyenv` and use it
