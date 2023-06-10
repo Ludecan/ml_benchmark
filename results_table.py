@@ -62,32 +62,35 @@ class ResultsTable:
     def add_table(self, results_table: "ResultsTable"):
         self.results = pd.concat([self.results, results_table.results])
 
-    def print_table(self, ndigits: int = 2):
-        # Custom format to remove trailing zeros
-        custom_format = "{:." + str(ndigits) + "f}"
-        formatter = {
-            column: custom_format
-            for column in ["ME", "RMSE", "MAE", "R2", "Training Time (s)"]
-        }
+    def print_table(self, ndigits: int = 2, styled: bool = False):
+        if styled:
+            # Custom format to remove trailing zeros
+            custom_format = "{:." + str(ndigits) + "f}"
+            formatter = {
+                column: custom_format
+                for column in ["ME", "RMSE", "MAE", "R2", "Training Time (s)"]
+            }
 
-        styled_df = (
-            self.results.set_index(["Model", "Dataset"])
-            .round(ndigits)
-            .style.background_gradient(
-                cmap="RdYlGn",
-                subset=["R2"],
-                axis=0,
-                # high=1,
-                # low=0,
+            styled_df = (
+                self.results.set_index(["Model", "Dataset"])
+                .round(ndigits)
+                .style.background_gradient(
+                    cmap="RdYlGn",
+                    subset=["R2"],
+                    axis=0,
+                    # high=1,
+                    # low=0,
+                )
+                .background_gradient(
+                    cmap="RdYlGn_r",
+                    subset=["ME", "RMSE", "MAE", "Training Time (s)"],
+                    axis=0,
+                    # high=1,
+                    # low=0,
+                )
+                .format(formatter)
             )
-            .background_gradient(
-                cmap="RdYlGn_r",
-                subset=["ME", "RMSE", "MAE", "Training Time (s)"],
-                axis=0,
-                # high=1,
-                # low=0,
-            )
-            .format(formatter)
-        )
 
-        display(styled_df)
+            display(styled_df)
+        else:
+            display(self.results.set_index(["Model", "Dataset"]).round(ndigits))

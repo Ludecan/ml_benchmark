@@ -41,7 +41,9 @@ def create_random_dataset(nrows: int, ncols: int) -> tuple[np.ndarray, np.ndarra
 
 
 def load_random_datasets():
-    for nrows, ncols in product((1000,), (10, 20, 50, 100)):
+    for nrows, ncols in product(
+        (1000, 10000, 100000, 1000000, 10000000), (10, 20, 50, 100)
+    ):
         # * 1.25 to account for the train/test split
         yield (f"{nrows} x {ncols}", create_random_dataset(int(nrows * 1.25), ncols))
 
@@ -127,17 +129,20 @@ def main():
             results.add_row(
                 model_name,
                 dataset_name,
-                X.shape[0],
-                X.shape[1],
+                X_train.shape[0],
+                X_train.shape[1],
                 me,
                 rmse,
                 mae,
                 r2,
                 train_time,
             )
+        results.print_table()
+        print("\n\n")
+
         full_results.add_table(results)
 
-        results.print_table()
+    full_results.results.to_csv("benchmark_results.csv")
 
 
 if __name__ == "__main__":
