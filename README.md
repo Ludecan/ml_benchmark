@@ -27,5 +27,11 @@ poetry config virtualenvs.in-project true
 poetry install
 ```
 
+## Running the benchmark
+Inside the poetry virtualenv run:
+```console
+python regression_benchmark.py
+```
+
 
 TODO: Dockerize installation to ensure common base libs
