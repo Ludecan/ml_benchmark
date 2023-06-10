@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "ml-benchmark"
+version = "0.1.0"
+description = ""
+authors = ["Pablo Alfaro <pablo.alfaro@therealreal.com>"]
+readme = "README.md"
+packages = [{include = "ml_benchmark"}]
+
+[tool.poetry.dependencies]
+python = "3.10.11"
+numpy = "^1.24.3"
+pandas = "1.5.3"
+scikit-learn = "^1.2.2"
+xgboost = "^1.7.5"
+lightgbm = "^3.3.5"
+pytorch-tabnet = "^4.0"
+autogluon = "^0.7.0"
+rich = "^13.4.0"
+scikit-learn-extra = "^0.3.0"
+
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.23.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
