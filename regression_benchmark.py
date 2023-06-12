@@ -42,7 +42,10 @@ def create_random_dataset(nrows: int, ncols: int) -> tuple[np.ndarray, np.ndarra
 
 def load_random_datasets():
     for nrows, ncols in product(
-        (1000, 10000, 100000, 1000000, 10000000), (10, 20, 50, 100)
+        # Leave out larger sizes for now because autogluon is crashing on them
+        # (1000, 10000, 100000, 1000000, 10000000), (10, 20, 50, 100)
+        (1000, 10000, 100000),
+        (10, 20, 50, 100),
     ):
         # * 1.25 to account for the train/test split
         yield (f"{nrows} x {ncols}", create_random_dataset(int(nrows * 1.25), ncols))
