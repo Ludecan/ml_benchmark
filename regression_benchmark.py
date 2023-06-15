@@ -43,8 +43,9 @@ def create_random_dataset(nrows: int, ncols: int) -> tuple[np.ndarray, np.ndarra
 def load_random_datasets():
     for nrows, ncols in product(
         # Leave out larger sizes for now because autogluon is crashing on them
-        # (1000, 10000, 100000, 1000000, 10000000), (10, 20, 50, 100)
-        (1000, 10000, 100000),
+        (1000, 10000, 100000, 1000000, 10000000),
+        (10, 20, 50, 100)
+        # (1000, 10000, 100000),
         (10, 20, 50, 100),
     ):
         # * 1.25 to account for the train/test split
@@ -105,10 +106,10 @@ def main():
         "Linear Regression": LinearRegression(),
         "Random Forest": RandomForestRegressor(),
         "XGBoost": XGBRegressor(),
-        "XGBoost (hist)": XGBRegressor(tree_method="hist"),
+        'XGBoost(tree_method="hist")': XGBRegressor(tree_method="hist"),
         "LightGBM": LGBMRegressor(),
         "CatBoost": CatBoost(params={"logging_level": "Silent"}),
-        "TabNet (CPU)": TabNetRegressor(verbose=0, device_name="cpu"),
+        'TabNet(device_name="cpu")': TabNetRegressor(verbose=0, device_name="cpu"),
         "AutoGluon": None,
     }
 
@@ -125,9 +126,21 @@ def main():
         model_name, model = list(models.items())[0]
         for model_name, model in models.items():
             print(f"  Evaluating {model_name}...")
-            me, rmse, mae, r2, train_time = evaluate_model(
-                model_name, model, X_train, X_test, y_train, y_test
-            )
+            try:
+                me, rmse, mae, r2, train_time = evaluate_model(
+                    model_name, model, X_train, X_test, y_train, y_test
+                )
+            except Exception as e:
+                print(
+                    f"Exception training model {model_name} for dataset {dataset_name}.\n{e}"
+                )
+                me, rmse, mae, r2, train_time = (
+                    np.inf,
+                    np.inf,
+                    np.inf,
+                    np.inf,
+                    np.inf,
+                )
 
             results.add_row(
                 model_name,

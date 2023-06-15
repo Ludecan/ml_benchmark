@@ -2,7 +2,7 @@
 name = "ml-benchmark"
 version = "0.1.0"
 description = ""
-authors = ["Pablo Alfaro <pablo.alfaro@therealreal.com>"]
+authors = ["Pablo Alfaro <ludecan@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
