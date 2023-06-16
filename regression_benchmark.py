@@ -16,6 +16,7 @@ import time
 from itertools import product
 
 from results_table import ResultsTable
+import gc
 
 
 # %%
@@ -43,9 +44,8 @@ def create_random_dataset(nrows: int, ncols: int) -> tuple[np.ndarray, np.ndarra
 def load_random_datasets():
     for nrows, ncols in product(
         # Leave out larger sizes for now because autogluon is crashing on them
-        (1000, 10000, 100000, 1000000, 10000000),
-        (10, 20, 50, 100)
-        # (1000, 10000, 100000),
+        (1000, 10000, 100000, 1000000, 5000000),
+        # (10000000, ),
         (10, 20, 50, 100),
     ):
         # * 1.25 to account for the train/test split
@@ -73,7 +73,7 @@ def get_metrics(y_pred, y_test) -> tuple[float, float, float, float]:
 
 
 def evaluate_model(model_name, model, X_train, X_test, y_train, y_test):
-    if model_name == "TabNet (CPU)":
+    if model_name == 'TabNet(device_name="cpu")':
         start_time = time.time()
         model.fit(X_train, y_train.reshape(-1, 1))
         train_time = time.time() - start_time
@@ -104,7 +104,7 @@ def evaluate_model(model_name, model, X_train, X_test, y_train, y_test):
 def main():
     models = {
         "Linear Regression": LinearRegression(),
-        "Random Forest": RandomForestRegressor(),
+        "Random Forest(n_jobs=-1)": RandomForestRegressor(n_jobs=-1),
         "XGBoost": XGBRegressor(),
         'XGBoost(tree_method="hist")': XGBRegressor(tree_method="hist"),
         "LightGBM": LGBMRegressor(),
@@ -126,6 +126,7 @@ def main():
         model_name, model = list(models.items())[0]
         for model_name, model in models.items():
             print(f"  Evaluating {model_name}...")
+            gc.collect()
             try:
                 me, rmse, mae, r2, train_time = evaluate_model(
                     model_name, model, X_train, X_test, y_train, y_test
