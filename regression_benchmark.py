@@ -125,6 +125,9 @@ def evaluate_model(
         )
 
         # Train the model
+        model = tfdf.keras.RandomForestModel(
+            task=tfdf.keras.Task.REGRESSION, verbose=0
+        )
         model.fit(train_data)
         train_time = time.time() - start_time
 
@@ -153,9 +156,7 @@ def main():
         "CatBoost": CatBoost(params={"logging_level": "Silent"}),
         'TabNet(device_name="cpu")': TabNetRegressor(verbose=0, device_name="cpu"),
         "AutoGluon": None,
-        "TFDecisionForest": tfdf.keras.RandomForestModel(
-            task=tfdf.keras.Task.REGRESSION, verbose=0
-        ),
+        "TFDecisionForest": None,
     }
 
     full_results = ResultsTable()
