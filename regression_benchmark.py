@@ -1,22 +1,24 @@
 # %%
+import gc
+import time
+from itertools import product
+from typing import Any
+
 import numpy as np
 import pandas as pd
-from sklearn.datasets import fetch_california_housing, fetch_openml, load_diabetes
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor
-from xgboost import XGBRegressor
-from lightgbm import LGBMRegressor
-from pytorch_tabnet.tab_model import TabNetRegressor
+import tensorflow_decision_forests as tfdf
 from autogluon.tabular import TabularPredictor
 from catboost import CatBoost
-import time
-
-from itertools import product
+from lightgbm import LGBMRegressor
+from pytorch_tabnet.tab_model import TabNetRegressor
+from sklearn.datasets import fetch_california_housing, fetch_openml, load_diabetes
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split
+from xgboost import XGBRegressor
 
 from results_table import ResultsTable
-import gc
 
 
 # %%
@@ -43,8 +45,9 @@ def create_random_dataset(nrows: int, ncols: int) -> tuple[np.ndarray, np.ndarra
 
 def load_random_datasets():
     for nrows, ncols in product(
-        # Leave out larger sizes for now because autogluon is crashing on them
-        (1000, 10000, 100000, 1000000, 5000000),
+        # Limit max size to 1M rows for now because that's the max AutoGluon can handle
+        # with my 64GB RAM PC
+        (1000, 10000, 100000, 1000000),
         # (10000000, ),
         (10, 20, 50, 100),
     ):
@@ -57,9 +60,9 @@ def load_datasets():
         # "Boston Housing": load_boston(return_X_y=True),
         "Diabetes": load_diabetes(return_X_y=True),
         "California Housing": fetch_california_housing(return_X_y=True),
-        # "Ames Housing": fetch_openml(
-        #    name="house_prices", as_frame=True, return_X_y=True
-        # ),
+        "Ames Housing": fetch_openml(
+            name="house_prices", as_frame=True, return_X_y=True
+        ),
     }
     return datasets
 
@@ -72,23 +75,62 @@ def get_metrics(y_pred, y_test) -> tuple[float, float, float, float]:
     return me, rmse, mae, r2
 
 
-def evaluate_model(model_name, model, X_train, X_test, y_train, y_test):
+def evaluate_model(
+    model_name: str,
+    model: Any,
+    X_train: np.ndarray,
+    X_test: np.ndarray,
+    y_train: np.ndarray,
+    y_test: np.ndarray,
+):
     if model_name == 'TabNet(device_name="cpu")':
         start_time = time.time()
         model.fit(X_train, y_train.reshape(-1, 1))
         train_time = time.time() - start_time
         y_pred = model.predict(X_test)
     elif model_name == "AutoGluon":
+        start_time = time.time()
         train_data = pd.DataFrame(
             np.concatenate([X_train, y_train.reshape(-1, 1)], axis=1)
         )
-        start_time = time.time()
         model = TabularPredictor(
             label=train_data.columns[-1], problem_type="regression"
         ).fit(train_data, verbosity=0)
         train_time = time.time() - start_time
         test_data = pd.DataFrame(X_test)
         y_pred = model.predict(test_data).values
+    elif model_name == "TFDecisionForest":
+        start_time = time.time()
+        train_data = pd.DataFrame(
+            np.concatenate([X_train, y_train.reshape(-1, 1)], axis=1),
+            columns=[f"f{i}" for i in range(X_train.shape[1])] + ["y"],
+        )
+        # Convert the data to TensorFlow tensors
+        train_data = tfdf.keras.pd_dataframe_to_tf_dataset(
+            train_data,
+            task=tfdf.keras.Task.REGRESSION,
+            label=train_data.columns[-1],
+            fix_feature_names=False,
+        )
+        test_data = pd.DataFrame(
+            np.concatenate([X_test, y_test.reshape(-1, 1)], axis=1),
+            columns=[f"f{i}" for i in range(X_test.shape[1])] + ["y"],
+        )
+        # Convert the data to TensorFlow tensors
+        test_data = tfdf.keras.pd_dataframe_to_tf_dataset(
+            test_data,
+            task=tfdf.keras.Task.REGRESSION,
+            label=test_data.columns[-1],
+            fix_feature_names=False,
+        )
+
+        # Train the model
+        model.fit(train_data)
+        train_time = time.time() - start_time
+
+        # Predict
+        y_pred = model.predict(test_data)
+        y_pred = y_pred.squeeze()  # Remove the extra dimension
     else:
         start_time = time.time()
         model.fit(X_train, y_train.ravel())
@@ -111,6 +153,9 @@ def main():
         "CatBoost": CatBoost(params={"logging_level": "Silent"}),
         'TabNet(device_name="cpu")': TabNetRegressor(verbose=0, device_name="cpu"),
         "AutoGluon": None,
+        "TFDecisionForest": tfdf.keras.RandomForestModel(
+            task=tfdf.keras.Task.REGRESSION, verbose=0
+        ),
     }
 
     full_results = ResultsTable()
@@ -123,7 +168,7 @@ def main():
             X, y, test_size=0.2, random_state=42
         )
 
-        model_name, model = list(models.items())[0]
+        # model_name, model = list(models.items())[-1]
         for model_name, model in models.items():
             print(f"  Evaluating {model_name}...")
             gc.collect()
