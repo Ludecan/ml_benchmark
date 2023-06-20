@@ -1,4 +1,9 @@
 # %%
+import os
+# Disable Tensorflow logs
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+# %%
 import gc
 import time
 from itertools import product
@@ -19,8 +24,15 @@ from sklearn.model_selection import train_test_split
 from xgboost import XGBRegressor
 
 from results_table import ResultsTable
+from datetime import datetime
+import shutil
 
 np.random.seed(42)
+
+
+def timed_print(msg: str):
+    print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: {msg}")
+
 
 # %%
 def create_random_dataset(nrows: int, ncols: int) -> tuple[np.ndarray, np.ndarray]:
@@ -90,16 +102,21 @@ def evaluate_model(
         train_time = time.time() - start_time
         y_pred = model.predict(X_test)
     elif model_name == "AutoGluon":
+        ag_path = './AutogluonModels'
+        if os.path.isdir(ag_path):
+            shutil.rmtree(ag_path)
         start_time = time.time()
         train_data = pd.DataFrame(
             np.concatenate([X_train, y_train.reshape(-1, 1)], axis=1)
         )
         model = TabularPredictor(
-            label=train_data.columns[-1], problem_type="regression"
+            label=train_data.columns[-1], problem_type="regression", path=ag_path
         ).fit(train_data, verbosity=0)
         train_time = time.time() - start_time
         test_data = pd.DataFrame(X_test)
         y_pred = model.predict(test_data).values
+        if os.path.isdir(ag_path):
+            shutil.rmtree(ag_path)
     elif model_name == "TFDecisionForest":
         start_time = time.time()
         train_data = pd.DataFrame(
@@ -165,21 +182,21 @@ def main():
     for dataset_name, (X, y) in load_random_datasets():
         results = ResultsTable()
 
-        print(f"Dataset: {dataset_name}")
+        timed_print(f"Dataset: {dataset_name}")
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=42
         )
 
         # model_name, model = list(models.items())[-1]
         for model_name, model in models.items():
-            print(f"  Evaluating {model_name}...")
+            timed_print(f"  Evaluating {model_name}...")
             gc.collect()
             try:
                 me, rmse, mae, r2, train_time = evaluate_model(
                     model_name, model, X_train, X_test, y_train, y_test
                 )
             except Exception as e:
-                print(
+                timed_print(
                     f"Exception training model {model_name} for dataset {dataset_name}.\n{e}"
                 )
                 me, rmse, mae, r2, train_time = (
