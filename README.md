@@ -33,5 +33,19 @@ Inside the poetry virtualenv run:
 python regression_benchmark.py
 ```
 
+## Considerations about results
+The main purpose of this benchmark is to compare the training time of different CPU implementations of ML Regression Algorithms for datasets of varying sizes under different hardware configurations.
+It creates random, all float in the [-10, 10] range datasets with several row and column numbers and a synthetic target is created from them using the following generalization of the Rosenbrock to multiple input dimensions (thanks for it ChatGPT!)
 
-TODO: Dockerize installation to ensure common base libs
+```
+f(x) = Σ[ c * (x[i+1] - x[i]^2)^2 + (1 - x[i])^2 ] for i in [0, N-2]
+```
+
+Notice the function was requested to be non-linear and have interactions between all pairs of consecutive features, allowing non linear models to show their strengths (and utterly defeating linear models).
+The accuracy metrics (ME, MAE, RMSE, R^2) are provided for reference but generalization of these results to other datasets is not advised without proper testing. It is relatively simple to switch the random datasets used in this benchmark for your own dataset if you want to try these models yourself.
+
+
+TODO:
+- Dockerize installation to ensure common base libs
+- Profile maximum memory usage during execution of each model
+- Different targets/noise?
