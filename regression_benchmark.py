@@ -20,6 +20,7 @@ from xgboost import XGBRegressor
 
 from results_table import ResultsTable
 
+np.random.seed = 42
 
 # %%
 def create_random_dataset(nrows: int, ncols: int) -> tuple[np.ndarray, np.ndarray]:
