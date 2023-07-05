@@ -1,9 +1,5 @@
 # %%
 import os
-# Disable Tensorflow logs
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
-# %%
 import gc
 import time
 from itertools import product
@@ -11,7 +7,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import tensorflow_decision_forests as tfdf
 from autogluon.tabular import TabularPredictor
 from catboost import CatBoost
 from lightgbm import LGBMRegressor
@@ -26,8 +21,45 @@ from xgboost import XGBRegressor
 from results_table import ResultsTable
 from datetime import datetime
 import shutil
+import re
+
+# Disable Tensorflow logs
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
+import tensorflow_decision_forests as tfdf
 
 np.random.seed(42)
+
+# TODO: move these to a config file and don't use global variables
+models = {
+    "Linear Regression": LinearRegression(),
+    "Random Forest(n_jobs=-1)": RandomForestRegressor(n_jobs=-1),
+    "XGBoost": XGBRegressor(),
+    'XGBoost(tree_method="hist")': XGBRegressor(tree_method="hist"),
+    "LightGBM": LGBMRegressor(),
+    "CatBoost": CatBoost(params={"logging_level": "Silent"}),
+    'TabNet(device_name="cpu")': TabNetRegressor(verbose=0, device_name="cpu"),
+    "AutoGluon": None,
+    "TFDecisionForest": None,
+}
+dataset_sizes = product(
+    (
+        1000,
+        10000,
+        100000,
+        500000,
+        1000000,
+        2000000,
+        5000000,
+    ),
+    (
+        10,
+        25,
+        50,
+        100,
+        500,
+    ),
+)
 
 
 def timed_print(msg: str):
@@ -57,13 +89,7 @@ def create_random_dataset(nrows: int, ncols: int) -> tuple[np.ndarray, np.ndarra
 
 
 def load_random_datasets():
-    for nrows, ncols in product(
-        # Limit max size to 1M rows for now because that's the max AutoGluon can handle
-        # with my 64GB RAM PC
-        (1000, 10000, 100000, 1000000),
-        # (10000000, ),
-        (10, 20, 50, 100),
-    ):
+    for nrows, ncols in dataset_sizes:
         # * 1.25 to account for the train/test split
         yield (f"{nrows} x {ncols}", create_random_dataset(int(nrows * 1.25), ncols))
 
@@ -95,14 +121,40 @@ def evaluate_model(
     X_test: np.ndarray,
     y_train: np.ndarray,
     y_test: np.ndarray,
-):
+) -> tuple[float, float, float, float, float]:
+    # These models don't finish their training properly on datasets bigger
+    # than these in my 64 GB RAM computer so I skip their training to avoid
+    # wasting time
+    max_df_rows = [
+        ('TabNet(device_name="cpu")', 2000000),
+        ("AutoGluon", 2000000),
+        ("TabNet", 1000000),
+    ]
+
+    for mname, max_n_rows in max_df_rows:
+        if model_name.startswith(mname) and X_train.shape[0] > max_n_rows:
+            return (
+                np.inf,
+                np.inf,
+                np.inf,
+                np.inf,
+                np.inf,
+            )
+
     if model_name == 'TabNet(device_name="cpu")':
         start_time = time.time()
         model.fit(X_train, y_train.reshape(-1, 1))
         train_time = time.time() - start_time
         y_pred = model.predict(X_test)
-    elif model_name == "AutoGluon":
-        ag_path = './AutogluonModels'
+    elif model_name.startswith("AutoGluon"):
+        regex_match = re.search(r'presets="([^"]*)"', model_name)
+        if regex_match:
+            preset = regex_match.group(1)
+        else:
+            # Default value of the preset parameter
+            preset = "medium_quality"
+
+        ag_path = "./AutogluonModels"
         if os.path.isdir(ag_path):
             shutil.rmtree(ag_path)
         start_time = time.time()
@@ -143,9 +195,7 @@ def evaluate_model(
         )
 
         # Train the model
-        model = tfdf.keras.RandomForestModel(
-            task=tfdf.keras.Task.REGRESSION, verbose=0
-        )
+        model = tfdf.keras.RandomForestModel(task=tfdf.keras.Task.REGRESSION, verbose=0)
         model.fit(train_data)
         train_time = time.time() - start_time
 
@@ -163,19 +213,72 @@ def evaluate_model(
     return me, rmse, mae, r2, train_time
 
 
+def time_execution(
+    model_name: str,
+    model: Any,
+    X_train: np.ndarray,
+    X_test: np.ndarray,
+    y_train: np.ndarray,
+    y_test: np.ndarray,
+    time_threshold_seconds: float = 2.0,
+    max_num_executions: int = 5,
+) -> tuple[float, float, float, float, float]:
+    timed_print(f"  Evaluating {model_name}...")
+
+    me, rmse, mae, r2, train_time = (
+        np.inf,
+        np.inf,
+        np.inf,
+        np.inf,
+        np.inf,
+    )
+    train_time = 0
+    num_executions = 0
+    train_times = np.full(shape=max_num_executions, fill_value=np.nan, dtype=np.float64)
+
+    # If training takes less than time_threshold_seconds, time it
+    # max_num_executions times and take the median measurement
+    while (train_time < time_threshold_seconds) and (
+        num_executions < max_num_executions
+    ):
+        # Delete and reload train/test data to ensure fair caching among models
+        del X_train, X_test, y_train, y_test
+        npzfile = np.load("./temp.npz")
+        X_train, X_test, y_train, y_test = (
+            npzfile["X_train"],
+            npzfile["X_test"],
+            npzfile["y_train"],
+            npzfile["y_test"],
+        )
+        # Run garbage collector to avoid it kicking in during training
+        gc.collect()
+
+        try:
+            me, rmse, mae, r2, train_time = evaluate_model(
+                model_name, model, X_train, X_test, y_train, y_test
+            )
+            train_times[num_executions] = train_time
+            train_time = np.nanmedian(train_times)
+            num_executions += 1
+        except Exception as e:
+            timed_print(
+                f"Exception training model {model_name} for dataset {dataset_name}.\n{e}"
+            )
+            me, rmse, mae, r2, train_time = (
+                np.inf,
+                np.inf,
+                np.inf,
+                np.inf,
+                np.inf,
+            )
+            num_executions = max_num_executions
+
+    return me, rmse, mae, r2, train_time
+
+
 # %%
 def main():
-    models = {
-        "Linear Regression": LinearRegression(),
-        "Random Forest(n_jobs=-1)": RandomForestRegressor(n_jobs=-1),
-        "XGBoost": XGBRegressor(),
-        'XGBoost(tree_method="hist")': XGBRegressor(tree_method="hist"),
-        "LightGBM": LGBMRegressor(),
-        "CatBoost": CatBoost(params={"logging_level": "Silent"}),
-        'TabNet(device_name="cpu")': TabNetRegressor(verbose=0, device_name="cpu"),
-        "AutoGluon": None,
-        "TFDecisionForest": None,
-    }
+    start_dt = datetime.now()
 
     full_results = ResultsTable()
     # dataset_name, (X, y) = next(load_random_datasets())
@@ -186,26 +289,21 @@ def main():
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=42
         )
+        # Save train/test data to file so they are loaded fresh before running each model
+        data_file_path = "./temp.npz"
+        np.savez(
+            data_file_path,
+            X_train=X_train,
+            X_test=X_test,
+            y_train=y_train,
+            y_test=y_test,
+        )
 
         # model_name, model = list(models.items())[-1]
         for model_name, model in models.items():
-            timed_print(f"  Evaluating {model_name}...")
-            gc.collect()
-            try:
-                me, rmse, mae, r2, train_time = evaluate_model(
-                    model_name, model, X_train, X_test, y_train, y_test
-                )
-            except Exception as e:
-                timed_print(
-                    f"Exception training model {model_name} for dataset {dataset_name}.\n{e}"
-                )
-                me, rmse, mae, r2, train_time = (
-                    np.inf,
-                    np.inf,
-                    np.inf,
-                    np.inf,
-                    np.inf,
-                )
+            me, rmse, mae, r2, train_time = time_execution(
+                model_name, model, X_train, X_test, y_train, y_test
+            )
 
             results.add_row(
                 model_name,
@@ -221,11 +319,18 @@ def main():
         results.print_table()
         print("\n\n")
 
+        if os.path.exists(data_file_path):
+            os.unlink(data_file_path)
+
         full_results.add_table(results)
 
-    full_results.results.to_csv("benchmark_results.csv")
+    full_results.results.to_csv(
+        f"{start_dt.strftime('%Y%m%d_%H%M%S')}_benchmark_results.csv"
+    )
+    timed_print("Finished running benchmark.")
 
 
+# %%
 if __name__ == "__main__":
     main()
 

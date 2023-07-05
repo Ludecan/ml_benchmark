@@ -161,3 +161,4 @@ cython_debug/
 AutogluonModels/
 catboost_info/
 benchmark_results.csv
+*.npz
