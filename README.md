@@ -44,6 +44,9 @@ f(x) = Σ[ c * (x[i+1] - x[i]^2)^2 + (1 - x[i])^2 ] for i in [0, N-2]
 Notice the function was requested to be non-linear and have interactions between all pairs of consecutive features, allowing non linear models to show their strengths (and utterly defeating linear models).
 The accuracy metrics (ME, MAE, RMSE, R^2) are provided for reference but generalization of these results to other datasets is not advised without proper testing. It is relatively simple to switch the random datasets used in this benchmark for your own dataset if you want to try these models yourself.
 
+# Raw results
+I'm doing this to compare performance on an I9-13900K system with DDR4 and DDR5 RAMs at different speeds, in order to find out how sensitive these algorithms are to RAM bandwidth.
+You can find the results so far here: https://docs.google.com/spreadsheets/d/1gF8VUrR7Kc7Hc54cRcXFrOKSi_L02epqipe0k0pAlp8/edit?usp=sharing
 
 TODO:
 - Dockerize installation to ensure common base libs
