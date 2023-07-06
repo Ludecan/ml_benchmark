@@ -128,7 +128,7 @@ def evaluate_model(
     max_df_rows = [
         ('TabNet(device_name="cpu")', 2000000),
         ("AutoGluon", 2000000),
-        ("TabNet", 1000000),
+        ("TabNet", 100000),
     ]
 
     for mname, max_n_rows in max_df_rows:
@@ -215,6 +215,7 @@ def evaluate_model(
 
 def time_execution(
     model_name: str,
+    dataset_name: str,
     model: Any,
     X_train: np.ndarray,
     X_test: np.ndarray,
@@ -302,7 +303,7 @@ def main():
         # model_name, model = list(models.items())[-1]
         for model_name, model in models.items():
             me, rmse, mae, r2, train_time = time_execution(
-                model_name, model, X_train, X_test, y_train, y_test
+                model_name, dataset_name, model, X_train, X_test, y_train, y_test
             )
 
             results.add_row(

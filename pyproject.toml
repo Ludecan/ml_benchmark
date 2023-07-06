@@ -16,7 +16,7 @@ pytorch-tabnet = "^4.0"
 autogluon = "^0.8.0"
 rich = "^13.4.0"
 scikit-learn-extra = "^0.3.0"
-tensorflow = "2.12.1"
+tensorflow = "2.12.0"
 tensorflow-decision-forests = "1.4.0"
 black = "^23.3.0"
 
