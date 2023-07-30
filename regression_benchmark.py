@@ -50,14 +50,12 @@ dataset_sizes = product(
         500000,
         1000000,
         2000000,
-        5000000,
     ),
     (
         10,
         25,
         50,
         100,
-        500,
     ),
 )
 
@@ -125,14 +123,17 @@ def evaluate_model(
     # These models don't finish their training properly on datasets bigger
     # than these in my 64 GB RAM computer so I skip their training to avoid
     # wasting time
-    max_df_rows = [
-        ('TabNet(device_name="cpu")', 2000000),
-        ("AutoGluon", 2000000),
-        ("TabNet", 100000),
+    max_df_size = [
+        ('TabNet(device_name="cpu")', 1000000 * 500),
+        ("AutoGluon", 1000000 * 500),
+        ("TabNet", 100000 * 50),
     ]
 
-    for mname, max_n_rows in max_df_rows:
-        if model_name.startswith(mname) and X_train.shape[0] > max_n_rows:
+    for mname, max_size in max_df_size:
+        if (
+            model_name.startswith(mname)
+            and X_train.shape[0] * X_train.shape[1] > max_size
+        ):
             return (
                 np.inf,
                 np.inf,
