@@ -14,19 +14,26 @@ from pytorch_tabnet.tab_model import TabNetRegressor
 from sklearn.datasets import fetch_california_housing, fetch_openml, load_diabetes
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_error, root_mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from xgboost import XGBRegressor
+from tabpfn import TabPFNRegressor
+from tabpfn_extensions.post_hoc_ensembles.sklearn_interface import AutoTabPFNRegressor
 
 from results_table import ResultsTable
 from datetime import datetime
 import shutil
 import re
+import warnings
+
+# Suppress specific FutureWarnings from sklearn
+warnings.filterwarnings("ignore", category=FutureWarning, module="sklearn")
 
 # Disable Tensorflow logs
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
-import tensorflow_decision_forests as tfdf
+# tfdf must be imported after the previous flag is set to avoid overly verbose logging
+import tensorflow_decision_forests as tfdf  # noqa
 
 np.random.seed(42)
 
@@ -39,6 +46,8 @@ models = {
     "LightGBM": LGBMRegressor(),
     "CatBoost": CatBoost(params={"logging_level": "Silent"}),
     'TabNet(device_name="cpu")': TabNetRegressor(verbose=0, device_name="cpu"),
+    "TabPFN": TabPFNRegressor(categorical_features_indices=[]),
+    "AutoTabPFN": AutoTabPFNRegressor(max_time=30),
     "AutoGluon": None,
     "TFDecisionForest": None,
 }
@@ -47,9 +56,9 @@ dataset_sizes = product(
         1000,
         10000,
         100000,
-        500000,
-        1000000,
-        2000000,
+        #        500000,
+        #        1000000,
+        #        2000000,
     ),
     (
         10,
@@ -106,7 +115,7 @@ def load_datasets():
 
 def get_metrics(y_pred, y_test) -> tuple[float, float, float, float]:
     me = (y_pred - y_test).mean()
-    rmse = mean_squared_error(y_test, y_pred, squared=False)
+    rmse = root_mean_squared_error(y_test, y_pred)
     mae = mean_absolute_error(y_test, y_pred)
     r2 = r2_score(y_test, y_pred)
     return me, rmse, mae, r2
@@ -130,6 +139,7 @@ def evaluate_model(
     ]
 
     for mname, max_size in max_df_size:
+        # Skip slow models for very large problems
         if (
             model_name.startswith(mname)
             and X_train.shape[0] * X_train.shape[1] > max_size
@@ -164,8 +174,9 @@ def evaluate_model(
         )
         model = TabularPredictor(
             label=train_data.columns[-1], problem_type="regression", path=ag_path
-        ).fit(train_data, verbosity=0)
+        ).fit(train_data, verbosity=0, presets=[preset])
         train_time = time.time() - start_time
+
         test_data = pd.DataFrame(X_test)
         y_pred = model.predict(test_data).values
         if os.path.isdir(ag_path):
@@ -301,7 +312,7 @@ def main():
             y_test=y_test,
         )
 
-        # model_name, model = list(models.items())[-1]
+        # model_name, model = list(models.items())[-3]
         for model_name, model in models.items():
             me, rmse, mae, r2, train_time = time_execution(
                 model_name, dataset_name, model, X_train, X_test, y_train, y_test
@@ -318,8 +329,9 @@ def main():
                 r2,
                 train_time,
             )
+            print("\n\n\n\n")
         results.print_table()
-        print("\n\n")
+        print("\n\n\n\n")
 
         if os.path.exists(data_file_path):
             os.unlink(data_file_path)
